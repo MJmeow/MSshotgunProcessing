@@ -1,0 +1,586 @@
+import sys
+sys.path.append('/g/bork1/romanov/scripts/')
+
+import matplotlib as mpl
+mpl.rcParams["axes.grid"]=True;mpl.rcParams["axes.facecolor"]="white"
+mpl.rcParams["grid.color"]="grey";mpl.rcParams["grid.linestyle"]="solid";mpl.rcParams["grid.alpha"]=0.2
+
+#############################################################
+"""
+MARY's ANALYSIS
+"""
+
+"""
+class "input_preparation" provides the input files for the subsequent GO-analysis in DAVID 
+(input files contain uniprot-identifiers)
+"""
+class input_preparation(object):
+	def __init__(self):
+		self.fileFolder="/g/bork5/romanov/MFPL/mary_analysis/"
+		self.data=self.get_file()
+		self.map_df=load_mapping_file()
+		self.map_dict=get_mapping_dictionary(self.map_df)
+
+		print("get_PD_proteins")
+		self.get_PD_proteins()
+		print("get_MQ_proteins")
+		self.get_MQ_proteins()
+
+	def get_file(self):
+		fileFolder=self.fileFolder
+		fileName="20161007_Compare_PD_MQ_wt_inh_only.txt"
+		data=pd.read_csv(fileFolder+fileName,sep="\t")
+		return data
+
+	def load_mapping_file(self):
+		yeast="yeast.txt"
+		fileFolder="/g/bork5/romanov/MFPL/"
+		df=pd.read_csv(fileFolder+yeast,sep="\t",skiprows=xrange(0,55))
+		df=df.drop(df.index[[0,1]])
+		return df
+
+	def get_mapping_dictionary(self,df):
+		fileList=numpy.array(df)
+		symbol_sgd_to_uniprot=dict()
+		new_fileList=list()
+		for i,f in enumerate(fileList):
+			lst=filter(lambda a:str(a)!="",f[0].split(" "))
+			new_fileList.append(lst)
+		for i,f in enumerate(new_fileList):
+			if i==6726:
+				break
+			#if f[0].startswith("YSF3")==True:raise Exception()
+			if f[0].endswith(";")==True:
+				if f[-5].find("_YEAST")!=-1:
+					symbol_sgd_to_uniprot.setdefault(f[0].split(";")[0],[]).append(f[-6])
+					symbol_sgd_to_uniprot.setdefault(f[1].split(";")[0],[]).append(f[-6])
+					symbol_sgd_to_uniprot.setdefault(f[2].split(";")[0],[]).append(f[-6])
+				else:
+					symbol_sgd_to_uniprot.setdefault(f[0].split(";")[0],[]).append(f[-5])
+					symbol_sgd_to_uniprot.setdefault(f[1].split(";")[0],[]).append(f[-5])
+					symbol_sgd_to_uniprot.setdefault(f[2].split(";")[0],[]).append(f[-5])
+			else:
+				symbol_sgd_to_uniprot.setdefault(f[0],[]).append(f[2])
+				symbol_sgd_to_uniprot.setdefault(f[1],[]).append(f[2])
+		symbol_sgd_to_uniprot["SUR4"]=["P40319"]
+		symbol_sgd_to_uniprot["YBL005W-B"]=["Q12490"]
+		symbol_sgd_to_uniprot["YCL019W"]=["P25384"]
+		symbol_sgd_to_uniprot["YCL020W"]=["P25383"]
+		symbol_sgd_to_uniprot["YCL057C-A"]=["Q96VH5"]
+		return symbol_sgd_to_uniprot
+
+	def get_PD_proteins(self):
+		fileFolder=self.fileFolder
+		pd_background=data[data["FieldPD"]=="middle"]
+		o=open(fileFolder+"pd_background_proteins.tsv","w")
+		proteins=list(pd_background.ProteinPD)
+		uniprots=list()
+		for pro in proteins:
+			if pro in map_dict.keys():
+				uniprots.append(map_dict[pro][0])
+		o.write("\n".join(list(set(uniprots))))
+		o.close()
+
+		pd_field1=data[data["FieldPD"]=="Field 1"]
+		o=open(fileFolder+"pd_field1_proteins.tsv","w")
+		proteins=list(pd_field1.ProteinPD)
+		uniprots=list()
+		for pro in proteins:
+			if pro in map_dict.keys():
+				uniprots.append(map_dict[pro][0])
+		o.write("\n".join(list(set(uniprots))))
+		o.close()
+
+		pd_field8=data[data["FieldPD"]=="Field 8"]
+		o=open(fileFolder+"pd_field8_proteins.tsv","w")
+		proteins=list(pd_field8.ProteinPD)
+		uniprots=list()
+		for pro in proteins:
+			if pro in map_dict.keys():
+				uniprots.append(map_dict[pro][0])
+		o.write("\n".join(list(set(uniprots))))
+		o.close()
+
+	def get_MQ_proteins(self):
+		fileFolder=self.fileFolder
+		pd_background=data[data["FieldMQ"]=="middle"]
+		o=open(fileFolder+"mq_background_proteins.tsv","w")
+		proteins=list(pd_background.ProteinMQ)
+		uniprots=list()
+		for pro in proteins:
+			if pro in map_dict.keys():
+				uniprots.append(map_dict[pro][0])
+		o.write("\n".join(list(set(uniprots))))
+		o.close()
+
+		pd_field1=data[data["FieldMQ"]=="Field 1"]
+		o=open(fileFolder+"mq_field1_proteins.tsv","w")
+		proteins=list(pd_field1.ProteinMQ)
+		uniprots=list()
+		for pro in proteins:
+			if pro in map_dict.keys():
+				uniprots.append(map_dict[pro][0])
+		o.write("\n".join(list(set(uniprots))))
+		o.close()
+
+		pd_field8=data[data["FieldMQ"]=="Field 8"]
+		o=open(fileFolder+"mq_field8_proteins.tsv","w")
+		proteins=list(pd_field8.ProteinMQ)
+		uniprots=list()
+		for pro in proteins:
+			if pro in map_dict.keys():
+				uniprots.append(map_dict[pro][0])
+		o.write("\n".join(list(set(uniprots))))
+		o.close()
+
+"""
+class "make_heatmap_pdmqComparison" analyses output-files from DAVID GO-analysis and creates the heatmaps
+"""
+
+class make_heatmap_pdmqComparison(object):
+	def __init__(self):
+		self.fileFolder="/g/bork5/romanov/MFPL/mary_analysis/"
+		print("load_files")
+		self.data_field1_pd,self.data_field8_pd,self.data_field1_mq,self.data_field8_mq=self.load_files()
+		print("get_dict_PD")
+		self.termDict_field1_pd,self.termDict_field8_pd,self.countDict_field1_pd,self.countDict_field8_pd=self.get_dict_PD()
+		print("get_dict_MQ")
+		self.termDict_field1_mq,self.termDict_field8_mq,self.countDict_field1_mq,self.countDict_field8_mq=self.get_dict_MQ()
+		print("heatmap_PD_MQ")
+		self.heatmap_PD_MQ()
+
+		self.map_df=load_mapping_file()
+		self.map_dict=get_mapping_dictionary(self.map_df)
+
+		print("export_summary_davidGO_file")
+		self.export_summary_davidGO_file()
+
+	def load_files(self):
+		#make heatmap with the DAVID results MQ versus PD
+		fileFolder="/g/bork5/romanov/MFPL/mary_analysis/"
+		fileName="david_mq_field1.txt"
+		data_field1_mq=pd.read_csv(fileFolder+fileName,sep="\t",index_col=0)
+		data_field1_mq=data_field1_mq[data_field1_mq["Benjamini"]<0.1]
+		fileName="david_mq_field8.txt"
+		data_field8_mq=pd.read_csv(fileFolder+fileName,sep="\t",index_col=0)
+		data_field8_mq=data_field8_mq[data_field8_mq["Benjamini"]<0.1]
+		data_field8_mq=data_field8_mq[~data_field8_mq.index.isin(["INTERPRO","SMART","KEGG_PATHWAY"])]
+		fileName="david_pd_field1.txt"
+		data_field1_pd=pd.read_csv(fileFolder+fileName,sep="\t",index_col=0)
+		data_field1_pd=data_field1_pd[data_field1_pd["Benjamini"]<0.1]
+		data_field1_pd=data_field1_pd[~data_field1_pd.index.isin(["INTERPRO","SMART","KEGG_PATHWAY"])]
+		fileName="david_pd_field8.txt"
+		data_field8_pd=getFile(fileFolder,fileName)
+		data_field8_pd=pd.read_csv(fileFolder+fileName,sep="\t",index_col=0)
+		data_field8_pd=data_field8_pd[data_field8_pd["Benjamini"]<0.1]
+		data_field8_pd=data_field8_pd[~data_field8_pd.index.isin(["INTERPRO","SMART","KEGG_PATHWAY"])]
+		return data_field1_pd,data_field8_pd,data_field1_mq,data_field8_mq
+
+	def get_dict_PD(self):
+		data_field1_pd=self.data_field1_pd
+		data_field8_pd=self.data_field8_pd
+
+		termList=list(data_field1_pd["Term"])
+		tList=list()
+		for t in termList:
+			if t.find("GO:")!=-1:
+				tList.append(t.split("~")[1])
+			else:
+				tList.append(t)
+		data_field1_pd.index=tList
+		termDict_field1_pd=dict((e1,list()) for e1 in tList)
+		for t in tList:
+			foldEnrichment=data_field1_pd.loc[t]["Fold Enrichment"]
+			termDict_field1_pd[t]=foldEnrichment
+		countDict_field1_pd=dict((e1,list()) for e1 in tList)
+		for t in tList:
+			foldEnrichment=data_field1_pd.loc[t]["Count"]
+			countDict_field1_pd[t]=foldEnrichment
+
+		termList=list(data_field8_pd["Term"])
+		tList=list()
+		for t in termList:
+			if t.find("GO:")!=-1:
+				tList.append(t.split("~")[1])
+			else:
+				tList.append(t)
+		data_field8_pd.index=tList
+		termDict_field8_pd=dict((e1,list()) for e1 in tList)
+		for t in tList:
+			foldEnrichment=data_field8_pd.loc[t]["Fold Enrichment"]
+			termDict_field8_pd[t]=foldEnrichment
+		countDict_field8_pd=dict((e1,list()) for e1 in tList)
+		for t in tList:
+			foldEnrichment=data_field8_pd.loc[t]["Count"]
+			countDict_field8_pd[t]=foldEnrichment
+		return termDict_field1_pd,termDict_field8_pd,countDict_field1_pd,countDict_field8_pd
+
+	def heatmap_PD(self):
+		termDict_field1_pd=self.termDict_field1_pd
+		termDict_field8_pd=self.termDict_field8_pd
+		data_field1_pd=self.data_field1_pd
+		data_field8_pd=self.data_field8_pd
+		fileFolder=self.fileFolder
+
+		unionTerms=sorted(list(set(termDict_field1_pd.keys()).union(set(termDict_field8_pd.keys()))))
+		foldEnrichments=list(data_field8_pd["Fold Enrichment"])+list(data_field1_pd["Fold Enrichment"])
+		scalarmap,colorList=self.get_specific_color_gradient(plt.cm.RdPu,foldEnrichments)
+
+		plt.clf()
+		fig=plt.figure(figsize=(5,15))
+		ax=fig.add_subplot(111)
+		count=0
+		for term in unionTerms:
+			get_field8=termDict_field8_pd.get(term,0)
+			get_field1=termDict_field1_pd.get(term,0)
+			if get_field8!=0:
+				color1=scalarmap.to_rgba(termDict_field8_pd[term])
+				size1=countDict_field8_pd[term]*30
+			else:
+				color1=(1,1,1,1)
+				size1=0
+			if get_field1!=0:
+				color2=scalarmap.to_rgba(termDict_field1_pd[term])
+				size2=countDict_field1_pd[term]*30
+			else:
+				color2=(1,1,1,1)
+				size2=0
+			colorList=[color1,color2]
+			sizeList=[size1,size2]
+			ax.scatter(xrange(2),[count]*2,color=colorList,alpha=1,edgecolor="black",s=sizeList)
+			count+=1
+		plt.yticks(list(xrange(len(unionTerms))))
+		ax.set_yticklabels(unionTerms,fontsize=20,color="black")
+		plt.savefig(fileFolder+"go_pd_davidResults.jpg",bbox_inches="tight")
+
+	def get_dict_MQ(self):
+		data_field1_mq=self.data_field1_mq
+		data_field8_mq=self.data_field8_mq
+
+		termList=list(data_field1_mq["Term"])
+		tList=list()
+		for t in termList:
+			if t.find("GO:")!=-1:
+				tList.append(t.split("~")[1])
+			else:
+				tList.append(t)
+		data_field1_mq.index=tList
+		termDict_field1_mq=dict((e1,list()) for e1 in tList)
+		for t in tList:
+			foldEnrichment=data_field1_mq.loc[t]["Fold Enrichment"]
+			termDict_field1_mq[t]=foldEnrichment
+		countDict_field1_mq=dict((e1,list()) for e1 in tList)
+		for t in tList:
+			foldEnrichment=data_field1_mq.loc[t]["Count"]
+			countDict_field1_mq[t]=foldEnrichment
+
+		termList=list(data_field8_mq["Term"])
+		tList=list()
+		for t in termList:
+			if t.find("GO:")!=-1:
+				tList.append(t.split("~")[1])
+			else:
+				tList.append(t)
+		data_field8_mq.index=tList
+		termDict_field8_mq=dict((e1,list()) for e1 in tList)
+		for t in tList:
+			foldEnrichment=data_field8_mq.loc[t]["Fold Enrichment"]
+			termDict_field8_mq[t]=foldEnrichment
+		countDict_field8_mq=dict((e1,list()) for e1 in tList)
+		for t in tList:
+			foldEnrichment=data_field8_mq.loc[t]["Count"]
+			countDict_field8_mq[t]=foldEnrichment
+		return termDict_field1_mq,termDict_field8_mq,countDict_field1_mq,countDict_field8_mq
+
+	def heatmap_MQ(self):
+		termDict_field1_mq=self.termDict_field1_mq
+		termDict_field8_mq=self.termDict_field8_mq
+		data_field1_mq=self.data_field1_mq
+		data_field8_mq=self.data_field8_mq
+		fileFolder=self.fileFolder
+
+		unionTerms=sorted(list(set(termDict_field1_mq.keys()).union(set(termDict_field8_mq.keys()))))
+		foldEnrichments=list(data_field8_mq["Fold Enrichment"])+list(data_field1_mq["Fold Enrichment"])
+		scalarmap,colorList=self.get_specific_color_gradient(plt.cm.RdPu,foldEnrichments)
+
+		plt.clf()
+		fig=plt.figure(figsize=(5,15))
+		ax=fig.add_subplot(111)
+		count=0
+		for term in unionTerms:
+			get_field8=termDict_field8_mq.get(term,0)
+			get_field1=termDict_field1_mq.get(term,0)
+			if get_field8!=0:
+				color1=scalarmap.to_rgba(termDict_field8_mq[term])
+				size1=countDict_field8_mq[term]*30
+			else:
+				color1=(1,1,1,1)
+				size1=0
+			if get_field1!=0:
+				color2=scalarmap.to_rgba(termDict_field1_mq[term])
+				size2=countDict_field1_mq[term]*30
+			else:
+				color2=(1,1,1,1)
+				size2=0
+			colorList=[color1,color2]
+			sizeList=[size1,size2]
+			ax.scatter(xrange(2),[count]*2,color=colorList,alpha=1,edgecolor="black",s=sizeList)
+			count+=1
+		plt.yticks(list(xrange(len(unionTerms))))
+		ax.set_yticklabels(unionTerms,fontsize=20,color="black")
+		plt.savefig(fileFolder+"go_mq_davidResults.jpg",bbox_inches="tight")
+
+	def get_specific_color_gradient(self,colormap,inputList):
+	    cm = plt.get_cmap(colormap)
+	    if type(inputList)==list:
+	        cNorm = mpl.colors.Normalize(vmin=min(inputList), vmax=max(inputList))
+	    else:
+	        cNorm = mpl.colors.Normalize(vmin=inputList.min(), vmax=inputList.max())
+	    scalarMap = mpl.cm.ScalarMappable(norm=cNorm, cmap=cm)
+	    scalarMap.set_array(inputList)
+	    colorList=scalarMap.to_rgba(inputList)
+	    return scalarMap,colorList
+
+	def get_legendHandle_for_second_sanity_check_plot(self):
+		quantAmplifier=10
+		legendHandleList=list()
+		labelSize=list()
+		for quantMem in [10,20,50,100,200]:
+		    legendHandleList.append(plt.scatter([],[],s=quantMem*quantAmplifier,color="grey",edgecolor="black",alpha=0.9))
+		    labelSize.append(str(int(round(float(quantMem),0))))
+		return legendHandleList,labelSize
+
+	def heatmap_PD_MQ(self):
+		fileFolder=self.fileFolder
+		termDict_field1_mq,termDict_field8_mq,countDict_field1_mq,countDict_field8_mq=self.termDict_field1_mq,self.termDict_field8_mq,self.countDict_field1_mq,self.countDict_field8_mq
+		termDict_field1_pd,termDict_field8_pd,countDict_field1_pd,countDict_field8_pd=self.termDict_field1_pd,self.termDict_field8_pd,self.countDict_field1_pd,self.countDict_field8_pd
+
+		unionTerms_mq=sorted(list(set(termDict_field1_mq.keys()).union(set(termDict_field8_mq.keys()))))
+		unionTerms_pd=sorted(list(set(termDict_field1_pd.keys()).union(set(termDict_field8_pd.keys()))))
+		unionTerms=filter(lambda a:a!="polarisome",sorted(list(set(unionTerms_pd).union(set(unionTerms_mq)))))
+
+		data_field8_pd=data_field8_pd[data_field8_pd.index.isin(unionTerms)]
+		data_field8_mq=data_field8_mq[data_field8_mq.index.isin(unionTerms)]
+		data_field1_pd=data_field1_pd[data_field1_pd.index.isin(unionTerms)]
+		data_field1_mq=data_field1_mq[data_field1_mq.index.isin(unionTerms)]
+
+		foldEnrichments=list(data_field8_pd["Fold Enrichment"])+list(data_field8_mq["Fold Enrichment"])+list(data_field1_mq["Fold Enrichment"])+list(data_field1_pd["Fold Enrichment"])
+		scalarmap,colorList=self.get_specific_color_gradient(plt.cm.RdPu,foldEnrichments)
+
+		plt.clf()
+		fig=plt.figure(figsize=(5,15))
+		ax=fig.add_subplot(111)
+		count=0
+		quantAmplifier=10
+		for term in unionTerms:
+			get_field8_mq=termDict_field8_mq.get(term,0)
+			get_field1_mq=termDict_field1_mq.get(term,0)
+			get_field8_pd=termDict_field8_pd.get(term,0)
+			get_field1_pd=termDict_field1_pd.get(term,0)
+			if get_field8_mq!=0:
+				color1_mq=scalarmap.to_rgba(termDict_field8_mq[term])
+				size1_mq=countDict_field8_mq[term]*quantAmplifier
+			else:
+				color1_mq=(1,1,1,1)
+				size1_mq=0
+			if get_field1_mq!=0:
+				color2_mq=scalarmap.to_rgba(termDict_field1_mq[term])
+				size2_mq=countDict_field1_mq[term]*quantAmplifier
+			else:
+				color2_mq=(1,1,1,1)
+				size2_mq=0
+			if get_field8_pd!=0:
+				color1_pd=scalarmap.to_rgba(termDict_field8_pd[term])
+				size1_pd=countDict_field8_pd[term]*quantAmplifier
+			else:
+				color1_pd=(1,1,1,1)
+				size1_pd=0
+			if get_field1_pd!=0:
+				color2_pd=scalarmap.to_rgba(termDict_field1_pd[term])
+				size2_pd=countDict_field1_pd[term]*quantAmplifier
+			else:
+				color2_pd=(1,1,1,1)
+				size2_pd=0
+			colorList=[color1_mq,color2_mq,color1_pd,color2_pd]
+			sizeList=[size1_mq,size2_mq,size1_pd,size2_pd]
+			ax.scatter(xrange(2),[count]*2,color=colorList[0:2],alpha=1,edgecolor="black",s=sizeList[0:2])
+			ax.axvline(2,linestyle="--",color="black",linewidth=2)
+			ax.scatter(xrange(3,5),[count]*2,color=colorList[2:],alpha=1,edgecolor="black",s=sizeList[2:])
+			count+=1
+		plt.yticks(list(xrange(len(unionTerms))))
+		ax.set_yticklabels(unionTerms,fontsize=20,color="black")
+		ax.set_xlim(-0.6,4.5)
+		ax.set_ylim(-0.5,len(unionTerms)+0.2)
+		plt.xticks(list(xrange(5)))
+		ax.set_xticklabels(["MQ:Field8","MQ:Field1","","PD:Field8","PD:Field1"],fontsize=15,rotation=90)
+		cbar=fig.colorbar(scalarmap,shrink=0.5)#,aspect=1.2)
+		cbar.set_label("Fold Enrichment",fontsize=14)
+		lh,lt=self.get_legendHandle_for_second_sanity_check_plot()
+		ax.legend(lh,lt,fontsize=14,title="# of proteins",bbox_to_anchor=(1.4,0.2))
+		plt.savefig(fileFolder+"go_both_davidResults.jpg",bbox_inches="tight",dpi=600)
+		plt.savefig(fileFolder+"go_both_davidResults.pdf",bbox_inches="tight",dpi=600)
+		plt.savefig(fileFolder+"go_both_davidResults.svg",bbox_inches="tight",dpi=600)
+
+	def load_mapping_file(self):
+		yeast="yeast.txt"
+		fileFolder="/g/bork5/romanov/MFPL/"
+		df=pd.read_csv(fileFolder+yeast,sep="\t",skiprows=xrange(0,55))
+		df=df.drop(df.index[[0,1]])
+		return df
+
+	def get_mapping_dictionary(self,df):
+		fileList=numpy.array(df)
+		symbol_sgd_to_uniprot=dict()
+		new_fileList=list()
+		for i,f in enumerate(fileList):
+			lst=filter(lambda a:str(a)!="",f[0].split(" "))
+			new_fileList.append(lst)
+		for i,f in enumerate(new_fileList):
+			if i==6726:
+				break
+			#if f[0].startswith("YSF3")==True:raise Exception()
+			if f[0].endswith(";")==True:
+				if f[-5].find("_YEAST")!=-1:
+					symbol_sgd_to_uniprot.setdefault(f[0].split(";")[0],[]).append(f[-6])
+					symbol_sgd_to_uniprot.setdefault(f[1].split(";")[0],[]).append(f[-6])
+					symbol_sgd_to_uniprot.setdefault(f[2].split(";")[0],[]).append(f[-6])
+				else:
+					symbol_sgd_to_uniprot.setdefault(f[0].split(";")[0],[]).append(f[-5])
+					symbol_sgd_to_uniprot.setdefault(f[1].split(";")[0],[]).append(f[-5])
+					symbol_sgd_to_uniprot.setdefault(f[2].split(";")[0],[]).append(f[-5])
+			else:
+				symbol_sgd_to_uniprot.setdefault(f[0],[]).append(f[2])
+				symbol_sgd_to_uniprot.setdefault(f[1],[]).append(f[2])
+		symbol_sgd_to_uniprot["SUR4"]=["P40319"]
+		symbol_sgd_to_uniprot["YBL005W-B"]=["Q12490"]
+		symbol_sgd_to_uniprot["YCL019W"]=["P25384"]
+		symbol_sgd_to_uniprot["YCL020W"]=["P25383"]
+		symbol_sgd_to_uniprot["YCL057C-A"]=["Q96VH5"]
+		return symbol_sgd_to_uniprot
+
+	def export_summary_davidGO_file(self):
+		map_dict=self.map_dict
+		fileFolder=self.fileFolder
+		data_field1_pd,data_field8_pd,data_field1_mq,data_field8_mq=self.data_field1_pd,self.data_field8_pd,self.data_field1_mq,self.data_field8_mq
+
+		uniprot_dict=dict()
+		for key in map_dict:
+			uniprot_dict.setdefault(map_dict[key][0],[]).append(key)
+
+		geneList=list(data_field8_pd.Genes)
+		uniprotList=list()
+		for gene in geneList:
+			genes=gene.split(", ")
+			tempList=list()
+			for g in genes:
+				tempList.append(sorted(uniprot_dict[g])[0])
+			uniprotList.append(",".join(list(set(tempList))))
+		data_field8_pd["GeneNames"]=pd.Series(uniprotList,index=data_field8_pd.index)
+		data_field8_pd["Field"]=pd.Series(["Field8"]*len(uniprotList),index=data_field8_pd.index)
+		data_field8_pd["Type"]=pd.Series(["PD"]*len(uniprotList),index=data_field8_pd.index)
+		geneList=list(data_field1_pd.Genes)
+		uniprotList=list()
+		for gene in geneList:
+			genes=gene.split(", ")
+			tempList=list()
+			for g in genes:
+				tempList.append(sorted(uniprot_dict[g])[0])
+			uniprotList.append(",".join(list(set(tempList))))
+		data_field1_pd["GeneNames"]=pd.Series(uniprotList,index=data_field1_pd.index)
+		data_field1_pd["Field"]=pd.Series(["Field1"]*len(uniprotList),index=data_field1_pd.index)
+		data_field1_pd["Type"]=pd.Series(["PD"]*len(uniprotList),index=data_field1_pd.index)
+
+		geneList=list(data_field8_mq.Genes)
+		uniprotList=list()
+		for gene in geneList:
+			genes=gene.split(", ")
+			tempList=list()
+			for g in genes:
+				tempList.append(sorted(uniprot_dict[g])[0])
+			uniprotList.append(",".join(list(set(tempList))))
+		data_field8_mq["GeneNames"]=pd.Series(uniprotList,index=data_field8_mq.index)
+		data_field8_mq["Field"]=pd.Series(["Field8"]*len(uniprotList),index=data_field8_mq.index)
+		data_field8_mq["Type"]=pd.Series(["MQ"]*len(uniprotList),index=data_field8_mq.index)
+		geneList=list(data_field1_mq.Genes)
+		uniprotList=list()
+		for gene in geneList:
+			genes=gene.split(", ")
+			tempList=list()
+			for g in genes:
+				tempList.append(sorted(uniprot_dict[g])[0])
+			uniprotList.append(",".join(list(set(tempList))))
+		data_field1_mq["GeneNames"]=pd.Series(uniprotList,index=data_field1_mq.index)
+		data_mq=pd.concat([data_field8_mq,data_field1_mq])
+		data_field1_mq["Field"]=pd.Series(["Field1"]*len(uniprotList),index=data_field1_mq.index)
+		data_field1_mq["Type"]=pd.Series(["MQ"]*len(uniprotList),index=data_field1_mq.index)
+
+		data=pd.concat([data_field8_pd,data_field1_pd,data_field8_mq,data_field1_mq])
+		data.to_csv(fileFolder+time.strftime("%Y%m%d")+"_davidGO_results_FDR10%_pdmqComparison.tsv",sep="\t")
+		return data
+
+
+"""
+VENN SCRIPT: in order to change input, change script in "prepare_input_data"-function below and "make_venn_graph"-function as well.
+"""
+import matplotlib_venn
+class make_venn_diagram(object):
+	def __init__(self):
+		self.fileFolder="/g/bork5/romanov/MFPL/mary_analysis/"
+		self.data=self.get_file()
+
+		print("prepare_input_data")
+		self.setList=self.prepare_input_data()
+		print("make_venn_graph")
+		self.make_venn_graph()
+
+	def prepare_input_data(self):
+		mq=data[data["FieldMQ"]=="Field 1"]
+		pd=data[data["FieldPD"]=="Field 1"]
+
+		setList=[set(mq.ProteinMQ),set(pd.ProteinPD)]
+		return setList
+
+	def make_venn_graph(self):
+		setList=self.setList
+		fileFolder=self.fileFolder
+
+		plt.clf()
+		fig=plt.figure()
+		ax=fig.add_subplot(111)
+		venn2=self.genVenn2(setList,["pink","yellow"],["MQ_Field1","PD_Field1"])
+		plt.savefig(fileFolder+time.strftime("%Y%m%d")+"_venn.jpg",bbox_inches="tight",dpi=400)
+
+	def get_file(self):
+		fileFolder=self.fileFolder
+		fileName="20161007_Compare_PD_MQ_wt_inh_only.txt"
+		data=pd.read_csv(fileFolder+fileName,sep="\t")
+		return data
+
+	def genVenn2(self,setList,colors,labels):
+		setA = setList[0]
+		setB = setList[1]
+
+		setAb=setA.difference(setB)
+		setaB=setB.difference(setA)
+
+		setAB=setA.intersection(setB)
+
+		numSetA=len(setA)
+		numSetB=len(setB)
+		numSetAb=len(setAb)
+		numSetaB=len(setaB)
+		numSetAB=len(setAB)
+
+		## venn2 subsets(Ab, aB, AB)
+		venn = matplotlib_venn.venn2(subsets = (numSetAb, numSetaB, numSetAB),set_colors=colors,set_labels=labels)
+		#subsets=(numSetAb, numSetaB, numSetAB)
+		#venn=self.venn2_circles(subsets,alpha=0.5, color='black', linestyle='--', linewidth=2.0)
+		for text in venn.set_labels:
+		    text.set_fontsize(20)
+		for text in venn.subset_labels:
+		    text.set_fontsize(20)
+		return venn
+
+v=make_venn_diagram()
+
+
